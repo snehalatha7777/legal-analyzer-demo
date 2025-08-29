@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clausewise Legal Document Analyzer – Demo</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- pdf.js (for client‑side PDF text extraction) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.js" integrity="sha512-A9nMZ0k9b2IYyYMLg7w6tYh1Pj1xW1uUo7rC7j+M8R6QdMfC3vMyb9fM1sQ4qQWZk0W9mM1hr1dB3ZbV0C1jvA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    .glass { backdrop-filter: blur(10px); background: rgba(255,255,255,0.7); }
+    .card { border-radius: 1.25rem; box-shadow: 0 10px 30px rgba(0,0,0,0.08);} 
+    .mono { font-feature-settings: "ss01" on, "tnum" on; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-violet-50 text-slate-800">
+  <!-- Navbar -->
+  <header class="sticky top-0 z-30 bg-white/70 glass border-b border-slate-200/60">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i data-lucide="scale" class="w-6 h-6 text-indigo-600"></i>
+        <span class="font-semibold">Clausewise Legal Analyzer</span>
+      </div>
+      <nav class="hidden md:flex items-center gap-6 text-sm">
+        <a href="#upload" class="hover:text-indigo-700">Upload</a>
+        <a href="#analyze" class="hover:text-indigo-700">Analyze</a>
+        <a href="#results" class="hover:text-indigo-700">Results</a>
+        <a href="#about" class="hover:text-indigo-700">About</a>
+      </nav>
+      <button id="btnReset" class="rounded-2xl px-3 py-1.5 text-sm bg-slate-900 text-white hover:bg-slate-800">Reset</button>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="max-w-6xl mx-auto px-4 mt-8">
+    <div class="grid md:grid-cols-2 gap-6 items-center">
+      <div class="card p-6 bg-white">
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Analyze contracts, clause by clause.</h1>
+        <p class="mt-2 text-slate-600">Upload a contract (PDF or TXT) or paste text. The page will extract clauses and run <span class="font-semibold">client‑side heuristic checks</span> for common legal risks like confidentiality, termination, indemnity, and arbitration. No server required for this demo.</p>
+        <ul class="mt-4 space-y-2 text-sm text-slate-700">
+          <li class="flex gap-2"><i data-lucide="check-circle" class="w-4 h-4 mt-0.5 text-green-600"></i> Works entirely in your browser (demo)</li>
+          <li class="flex gap-2"><i data-lucide="list-checks" class="w-4 h-4 mt-0.5 text-indigo-600"></i> Smart clause splitting</li>
+          <li class="flex gap-2"><i data-lucide="shield-alert" class="w-4 h-4 mt-0.5 text-amber-600"></i> Keyword+pattern risk flags</li>
+        </ul>
+        <div class="mt-4 flex gap-3">
+          <a href="#upload" class="rounded-2xl px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-500">Get started</a>
+          <button id="btnExport" class="rounded-2xl px-4 py-2 border border-slate-300 hover:bg-white">Export JSON</button>
+        </div>
+      </div>
+      <div class="card p-6 bg-white">
+        <div class="aspect-video w-full rounded-xl bg-gradient-to-br from-indigo-100 to-violet-100 grid place-items-center">
+          <div class="text-center">
+            <i data-lucide="file-text" class="w-12 h-12 text-indigo-600 inline"></i>
+            <p class="mt-2 font-medium">Drop a file or paste your contract text</p>
+            <p class="text-sm text-slate-500">PDF/TXT supported in this demo. DOCX not supported.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Upload / Input Panel -->
+  <section id="upload" class="max-w-6xl mx-auto px-4 mt-8">
+    <div class="card p-6 bg-white">
+      <h2 class="text-xl font-semibold">1) Add your document</h2>
+      <div class="mt-4 grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm font-medium">Upload PDF/TXT</label>
+          <input id="fileInput" type="file" accept=".pdf,.txt" class="mt-2 block w-full rounded-xl border border-slate-300 p-2" />
+          <p class="text-xs text-slate-500 mt-1">Large PDFs may take a few seconds to parse in your browser.</p>
+        </div>
+        <div>
+          <label class="text-sm font-medium">Or paste text</label>
+          <textarea id="textInput" rows="8" class="mt-2 w-full rounded-xl border border-slate-300 p-3" placeholder="Paste contract text here..."></textarea>
+        </div>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-3">
+        <button id="btnExtract" class="rounded-2xl px-4 py-2 bg-slate-900 text-white hover:bg-slate-800"><i data-lucide="scissors" class="w-4 h-4 inline mr-1"></i>Extract Clauses</button>
+        <button id="btnSample" class="rounded-2xl px-4 py-2 border border-slate-300 hover:bg-white"><i data-lucide="sparkles" class="w-4 h-4 inline mr-1"></i>Load Sample</button>
+        <span id="status" class="text-sm text-slate-600"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Analysis Controls -->
+  <section id="analyze" class="max-w-6xl mx-auto px-4 mt-8">
+    <div class="card p-6 bg-white">
+      <h2 class="text-xl font-semibold">2) Run risk checks (client‑side demo)</h2>
+      <div class="grid md:grid-cols-3 gap-4 mt-4 text-sm">
+        <label class="flex items-center gap-2"><input id="chkConf" type="checkbox" class="rounded" checked/> Confidentiality</label>
+        <label class="flex items-center gap-2"><input id="chkTerm" type="checkbox" class="rounded" checked/> Termination / Notice</label>
+        <label class="flex items-center gap-2"><input id="chkIndemn" type="checkbox" class="rounded" checked/> Indemnity</label>
+        <label class="flex items-center gap-2"><input id="chkLiab" type="checkbox" class="rounded" checked/> Liability / Cap</label>
+        <label class="flex items-center gap-2"><input id="chkArb" type="checkbox" class="rounded" checked/> Arbitration / Governing Law</label>
+        <label class="flex items-center gap-2"><input id="chkWaiver" type="checkbox" class="rounded" checked/> Waiver / Assignment</label>
+      </div>
+      <div class="mt-4">
+        <button id="btnAnalyze" class="rounded-2xl px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-500">Analyze Clauses</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results Table -->
+  <section id="results" class="max-w-6xl mx-auto px-4 mt-8 mb-16">
+    <div class="card p-0 overflow-hidden bg-white">
+      <div class="px-6 pt-6">
+        <h2 class="text-xl font-semibold">3) Results</h2>
+        <p class="text-sm text-slate-500">Heuristic flags are for demo only and not legal advice.</p>
+      </div>
+      <div class="overflow-x-auto mt-4">
+        <table class="min-w-full text-left text-sm">
+          <thead class="bg-slate-100">
+            <tr>
+              <th class="px-6 py-3">#</th>
+              <th class="px-6 py-3">Clause</th>
+              <th class="px-6 py-3">Flags</th>
+              <th class="px-6 py-3">Risk</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer id="about" class="border-t border-slate-200/60 bg-white/70 glass">
+    <div class="max-w-6xl mx-auto px-4 py-6 text-sm text-slate-600">
+      <p class="font-medium">About this demo</p>
+      <p>This is a front‑end only prototype. For production, connect a backend/API (e.g., FastAPI, Node, or Streamlit) and a moderation/groundedness service (like IBM Granite Guardian) to replace the heuristic logic below.</p>
+    </div>
+  </footer>
+
+  <script>
+    lucide.createIcons();
+
+    const fileInput = document.getElementById('fileInput');
+    const textInput = document.getElementById('textInput');
+    const btnSample = document.getElementById('btnSample');
+    const btnExtract = document.getElementById('btnExtract');
+    const btnAnalyze = document.getElementById('btnAnalyze');
+    const btnExport = document.getElementById('btnExport');
+    const btnReset = document.getElementById('btnReset');
+    const statusEl = document.getElementById('status');
+    const resultsBody = document.getElementById('resultsBody');
+
+    let clauses = [];
+    let analysis = [];
+
+    // ---------- Helpers ----------
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+    function badge(text, tone) {
+      const tones = {
+        gray: 'bg-slate-100 text-slate-700',
+        green: 'bg-green-100 text-green-800',
+        amber: 'bg-amber-100 text-amber-800',
+        red: 'bg-rose-100 text-rose-800',
+        indigo: 'bg-indigo-100 text-indigo-800'
+      };
+      return `<span class="px-2 py-0.5 rounded-xl text-xs ${tones[tone]||tones.gray}">${text}</span>`;
+    }
+
+    function normalizeText(t){
+      return (t||'').replace(/\s+/g,' ').replace(/[\r\n]+/g,' ').trim();
+    }
+
+    function splitClauses(text){
+      const t = normalizeText(text);
+      if(!t) return [];
+      // Rule 1: split by numbered headings or bullets
+      const byHeading = t.split(/(?=\n?\s*(?:Section\s+\d+\.?|Clause\s+\d+\.?|\d+\.|\([a-zA-Z0-9]\)\s))/g);
+      let parts = [];
+      byHeading.forEach(seg => {
+        // Further split long segments by sentence endings while keeping content
+        seg.split(/(?<=[.;:])\s+(?=[A-Z(])/g).forEach(s => parts.push(s.trim()));
+      });
+      // Filter out short/noisy bits
+      parts = parts.filter(s => s && s.length > 30);
+      // Merge tiny fragments into previous clause
+      const merged = [];
+      for(const s of parts){
+        if(merged.length && s.length < 60){ merged[merged.length-1] += ' ' + s; }
+        else merged.push(s);
+      }
+      return merged.map(s => s.replace(/^\s*\d+\.?\s*/, ''));
+    }
+
+    function keywordHit(text, list){
+      const lower = text.toLowerCase();
+      return list.some(k => lower.includes(k));
+    }
+
+    function scoreClause(c){
+      // Simple heuristic rules; replace with backend model in production
+      const rules = {
+        confidentiality: ["confidential", "non-disclosure", "nda", "trade secret", "privacy"],
+        termination: ["terminate", "termination", "notice", "days notice", "material breach"],
+        indemnity: ["indemnify", "indemnification", "hold harmless"],
+        liability: ["liability", "liable", "consequential", "special damages", "cap", "limit of liability"],
+        arbitration: ["arbitration", "arbitral", "governing law", "jurisdiction", "venue", "dispute resolution"],
+        waiver: ["waive", "waiver", "assignment", "no waiver", "severability"]
+      };
+
+      const flags = [];
+      let risk = 0; // 0 low, 1 med, 2 high
+
+      if(document.getElementById('chkConf').checked && keywordHit(c, rules.confidentiality)) { flags.push('Confidentiality'); risk = Math.max(risk, 1); }
+      if(document.getElementById('chkTerm').checked && keywordHit(c, rules.termination)) { flags.push('Termination/Notice'); }
+      if(document.getElementById('chkIndemn').checked && keywordHit(c, rules.indemnity)) { flags.push('Indemnity'); risk = Math.max(risk, 2); }
+      if(document.getElementById('chkLiab').checked && keywordHit(c, rules.liability)) { flags.push('Liability/Cap'); risk = Math.max(risk, 2); }
+      if(document.getElementById('chkArb').checked && keywordHit(c, rules.arbitration)) { flags.push('Arbitration/Law'); risk = Math.max(risk, 1); }
+      if(document.getElementById('chkWaiver').checked && keywordHit(c, rules.waiver)) { flags.push('Waiver/Assignment'); risk = Math.max(risk, 1); }
+
+      // Additional red flags
+      const scary = ["waives all rights", "sole discretion", "irrevocably", "perpetual", "unlimited liability", "notwithstanding anything", "without limitation"];
+      if(keywordHit(c, scary)) { flags.push('Red‑flag phrase'); risk = 2; }
+
+      const riskLabel = ['Low','Medium','High'][risk];
+      const riskTone = ['green','amber','red'][risk];
+      return { flags, risk, riskLabel, riskTone };
+    }
+
+    function renderResults(){
+      resultsBody.innerHTML = '';
+      analysis.forEach((row, i) => {
+        const tr = document.createElement('tr');
+        tr.className = 'align-top';
+        tr.innerHTML = `
+          <td class="px-6 py-3 mono text-slate-500">${i+1}</td>
+          <td class="px-6 py-3 max-w-xl"><div class="whitespace-pre-wrap">${row.clause}</div></td>
+          <td class="px-6 py-3">${row.flags.length ? row.flags.map(f => badge(f,'indigo')).join(' ') : badge('None','gray')}</td>
+          <td class="px-6 py-3">${badge(row.riskLabel, row.riskTone)}</td>
+        `;
+        resultsBody.appendChild(tr);
+      });
+    }
+
+    function exportJSON(){
+      const data = {
+        generatedAt: new Date().toISOString(),
+        totalClauses: analysis.length,
+        items: analysis
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'analysis.json'; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ---------- PDF/Text ingestion ----------
+    async function readFileAsText(file){
+      if(file.name.toLowerCase().endsWith('.txt')){
+        return await file.text();
+      }
+      if(file.name.toLowerCase().endsWith('.pdf')){
+        statusEl.textContent = 'Reading PDF…';
+        const arrayBuf = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+        let full = '';
+        for(let i=1;i<=pdf.numPages;i++){
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const strings = content.items.map(it => it.str);
+          full += strings.join(' ') + '\n';
+          if(i % 5 === 0){ statusEl.textContent = `Parsed page ${i}/${pdf.numPages}…`; await sleep(10); }
+        }
+        statusEl.textContent = `Parsed ${pdf.numPages} pages.`;
+        return full;
+      }
+      throw new Error('Unsupported file type. Use PDF or TXT.');
+    }
+
+    // ---------- Event wiring ----------
+    btnSample.addEventListener('click', () => {
+      textInput.value = `1. Confidentiality. The Vendor shall maintain the confidentiality of all Client data and not disclose it to third parties except as required by law. \n\n2. Termination. Either party may terminate this Agreement upon thirty (30) days prior written notice. Termination for material breach may be immediate. \n\n3. Limitation of Liability. In no event shall either party be liable for indirect, incidental, or consequential damages; total liability shall not exceed the fees paid in the six (6) months preceding the claim. \n\n4. Indemnification. Client agrees to indemnify and hold harmless Vendor from all claims arising from Client’s misuse of the Services. \n\n5. Governing Law and Arbitration. This Agreement shall be governed by the laws of the State of New York. Any dispute shall be resolved by binding arbitration in New York County. \n\n6. Waiver and Assignment. No waiver of any term shall be deemed a further or continuing waiver. Neither party may assign this Agreement without prior written consent.`;
+    });
+
+    btnExtract.addEventListener('click', async () => {
+      try{
+        statusEl.textContent = 'Extracting clauses…';
+        let text = textInput.value.trim();
+        const f = fileInput.files?.[0];
+        if(!text && f){ text = await readFileAsText(f); textInput.value = text; }
+        if(!text){ alert('Please upload a PDF/TXT or paste text first.'); return; }
+        clauses = splitClauses(text);
+        if(clauses.length === 0){ alert('No clauses detected. Try pasting plain text or a simpler PDF.'); return; }
+        analysis = clauses.map(c => ({ clause: c, flags: [], risk: 0, riskLabel: 'Low', riskTone: 'green' }));
+        renderResults();
+        statusEl.textContent = `Extracted ${clauses.length} clauses.`;
+      } catch(err){
+        console.error(err); alert(err.message||String(err)); statusEl.textContent='';
+      }
+    });
+
+    btnAnalyze.addEventListener('click', () => {
+      if(!clauses.length){ alert('Extract clauses first.'); return; }
+      analysis = clauses.map(c => { const s = scoreClause(c); return { clause: c, ...s }; });
+      renderResults();
+      statusEl.textContent = 'Analysis complete (heuristic demo).';
+    });
+
+    btnExport.addEventListener('click', exportJSON);
+
+    btnReset.addEventListener('click', () => {
+      fileInput.value = '';
+      textInput.value = '';
+      clauses = []; analysis = []; resultsBody.innerHTML = ''; statusEl.textContent='';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  </script>
+</body>
+</html>
