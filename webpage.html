@@ -165,14 +165,15 @@
     }
 
     function normalizeText(t){
-      return (t||'').replace(/\s+/g,' ').replace(/[\r\n]+/g,' ').trim();
+      return (t||'').replace(/\s+/g,' ').replace(/\r\n+/g,' ').trim();
     }
 
     function splitClauses(text){
       const t = normalizeText(text);
       if(!t) return [];
       // Rule 1: split by numbered headings or bullets
-      const byHeading = t.split(/(?=\n?\s*(?:Section\s+\d+\.?|Clause\s+\d+\.?|\d+\.|\([a-zA-Z0-9]\)\s))/g);
+      const byHeading = t.split(/(?=\n?\s*(?:Section\s+\d+\.?|Clause\s+\d+\.?|\d+\.|
+\([a-zA-Z0-9]\)\s))/g);
       let parts = [];
       byHeading.forEach(seg => {
         // Further split long segments by sentence endings while keeping content
@@ -186,7 +187,7 @@
         if(merged.length && s.length < 60){ merged[merged.length-1] += ' ' + s; }
         else merged.push(s);
       }
-      return merged.map(s => s.replace(/^\s*\d+\.?\s*/, ''));
+      return merged.map(s => s.replace(/^\s*\d+\.?.*?/, ''));
     }
 
     function keywordHit(text, list){
